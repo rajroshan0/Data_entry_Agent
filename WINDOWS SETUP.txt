@@ -1,0 +1,35 @@
+DATA ENTRY BOT - SETUP FOR WINDOWS (one time, about 10 minutes)
+
+You need only 3 things: Google Chrome, Node.js, and a free Groq key.
+
+1. Google Chrome
+   If it is not installed: https://www.google.com/chrome
+
+2. Node.js
+   Go to https://nodejs.org , click the green "LTS" button, run the installer,
+   and click Next until it finishes. Restart the computer afterwards.
+
+3. Free AI key (Groq)
+   Go to https://console.groq.com , sign up, open "API Keys", click "Create API Key",
+   and copy the key (it starts with gsk_). Keep it private.
+
+4. Unzip this folder
+   Right-click the zip file, choose "Extract All", and put the folder somewhere easy,
+   for example Documents.
+
+5. Double-click  start.bat
+   - First time: Notepad opens. After  GROQ_API_KEY=  paste your key (no spaces, no quotes).
+     Press Ctrl+S, close Notepad, then press any key in the black window.
+   - It installs by itself (about a minute) and opens the control page in your browser.
+
+6. Using it
+   - On the page choose "Review mode" and press "Start working".
+   - A Chrome window opens with the portal. Log in with YOUR OWN portal account (first time only,
+     it is remembered).
+   - The tool reads each website, fills the form, and waits. Check it, then click submit yourself.
+   - Keep the black window open while you work. Close it to stop the tool.
+
+Next days: just double-click start.bat again.
+
+If something goes wrong, copy the text from the black window (or the Log box on the page)
+and send it to the person who gave you the tool.

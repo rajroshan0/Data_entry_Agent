@@ -1,0 +1,6 @@
+node_modules/
+.env
+browser-profile/
+output/
+.DS_Store
+.backup-before-groq/

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Entry Bot</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #fff; --ink: #1c2330; --muted: #667085; --line: #e3e6ec;
+    --green: #2e9e5b; --green-d: #23804a; --red: #c8372d; --amber: #b7791f; --blue: #2563eb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14171c; --card: #1d2229; --ink: #e8ebf0; --muted: #9aa3b2; --line: #2d343e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 20px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+  .row { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+  .modes label { display: block; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
+  .modes label:has(input:checked) { border-color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); }
+  .modes small { display: block; color: var(--muted); margin-left: 24px; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 8px; padding: 11px 22px; cursor: pointer; color: #fff; }
+  #start { background: var(--green); } #start:hover:not(:disabled) { background: var(--green-d); }
+  #stop { background: var(--red); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  input[type=number] { width: 80px; font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  .status { display: flex; gap: 10px; align-items: center; font-weight: 600; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .dot.run { background: var(--green); } .dot.wait { background: var(--amber); } .dot.err { background: var(--red); }
+  .banner { padding: 10px 14px; border-radius: 8px; margin-top: 12px; font-weight: 500; display: none; }
+  .banner.show { display: block; }
+  .banner.warn { background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--amber); }
+  .banner.err { background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--red); }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .stat b { display: block; font-size: 24px; } .stat span { color: var(--muted); font-size: 13px; }
+  .url { font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td { padding: 6px 8px; border-top: 1px solid var(--line); } td:first-child { color: var(--muted); width: 38%; }
+  #log { height: 280px; overflow: auto; background: var(--bg); border-radius: 8px; padding: 10px 12px; font: 13px/1.55 ui-monospace, Menlo, Consolas, monospace; }
+  #log .warn { color: var(--amber); } #log .error { color: var(--red); } #log time { color: var(--muted); margin-right: 8px; }
+  h2 { font-size: 15px; margin: 0 0 10px; }
+  @media (max-width: 640px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Data Entry Bot</h1>
+  <p class="sub">Opens the portal in Chrome, checks each website, fills the form, and logs every entry.</p>
+
+  <div class="card">
+    <div class="row">
+      <div class="modes">
+        <label><input type="radio" name="mode" value="review" checked> <b>Review mode</b> (recommended)
+          <small>Fills the form. You check it and click submit.</small></label>
+        <label><input type="radio" name="mode" value="auto"> <b>Auto mode</b>
+          <small>Submits by itself when everything is verified. Doubtful sites wait for you.</small></label>
+      </div>
+      <div>
+        <p style="margin:0 0 6px"><label>Stop after <input type="number" id="limit" min="0" value="0"> sites <span style="color:var(--muted)">(0 = no limit)</span></label></p>
+        <button id="start">Start working</button>
+        <button id="stop" disabled>Stop</button>
+      </div>
+    </div>
+    <div class="status" style="margin-top:14px"><span class="dot" id="dot"></span><span id="stage">Idle</span></div>
+    <div class="banner warn" id="bLogin">Log in to the portal in the Chrome window that opened. Your login is saved for next time.</div>
+    <div class="banner warn" id="bSubmit">The form is filled. Check it in Chrome, then click <b>submit</b>.</div>
+    <div class="banner warn" id="bKey">No AI key found in the .env file. Paste your key after GROQ_API_KEY=, save the file (Cmd+S), then press Start again. Until then only review mode works and you choose Kind of Business yourself.</div>
+    <div class="banner err" id="bErr"></div>
+  </div>
+
+  <div class="card">
+    <div class="stats">
+      <div class="stat"><b id="sProcessed">0</b><span>Processed</span></div>
+      <div class="stat"><b id="sWorking">0</b><span>Working</span></div>
+      <div class="stat"><b id="sNot">0</b><span>Not Working</span></div>
+      <div class="stat"><b id="sNeed">0</b><span>Needed you</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Current website</h2>
+    <div class="url" id="current">-</div>
+  </div>
+
+  <div class="card">
+    <h2>Last entry</h2>
+    <table id="last"><tr><td>Nothing yet</td><td></td></tr></table>
+  </div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <div id="log"></div>
+    <p class="sub" style="margin:10px 0 0">Every entry is also saved in <code>output/results.csv</code> (opens in Excel).</p>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const post = (path, body) => fetch(path, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'data-entry-ui' },
+  body: JSON.stringify(body || {}),
+});
+
+$('start').onclick = async () => {
+  const mode = document.querySelector('input[name=mode]:checked').value;
+  if (mode === 'auto' && !confirm('Auto mode submits entries to the portal by itself. Continue?')) return;
+  await post('/api/start', { mode, limit: $('limit').value });
+};
+$('stop').onclick = () => post('/api/stop');
+
+const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const LABELS = [
+  ['url', 'Website'], ['status', 'Website Status'], ['kind', 'Kind of Business'], ['email', 'Email'],
+  ['phone', 'Phone Number'], ['country', 'Country'], ['address', 'Address'], ['city', 'City'], ['state', 'State'],
+  ['companyProfile', 'Company Profile'], ['nameOfProd', 'Name of Prod'], ['imageOfProd', 'Image of Prod'],
+  ['descOfProd', 'Desc of Prod'], ['flags', 'Needs a look'],
+];
+
+async function refresh() {
+  let s;
+  try { s = await (await fetch('/api/state')).json(); } catch { return; }
+  $('start').disabled = s.running;
+  $('stop').disabled = !s.running;
+  document.querySelectorAll('input[name=mode], #limit').forEach((e) => (e.disabled = s.running));
+
+  $('stage').textContent = s.running ? s.stage[0].toUpperCase() + s.stage.slice(1) : 'Idle';
+  $('dot').className = 'dot' + (s.error ? ' err' : s.awaitingLogin || s.awaitingSubmit ? ' wait' : s.running ? ' run' : '');
+  $('bLogin').classList.toggle('show', s.awaitingLogin);
+  $('bSubmit').classList.toggle('show', s.awaitingSubmit);
+  $('bKey').classList.toggle('show', !s.hasAiKey);
+  $('bErr').textContent = s.error; $('bErr').classList.toggle('show', !!s.error);
+
+  $('sProcessed').textContent = s.stats.processed; $('sWorking').textContent = s.stats.working;
+  $('sNot').textContent = s.stats.notWorking; $('sNeed').textContent = s.stats.needYou;
+  $('current').textContent = s.currentUrl || '-';
+
+  if (s.last) {
+    $('last').innerHTML = LABELS.map(([k, label]) => {
+      const v = k === 'flags' ? (s.last.flags || []).join(', ') : s.last[k];
+      return `<tr><td>${label}</td><td>${esc(v) || '<span style="color:var(--muted)">(empty)</span>'}</td></tr>`;
+    }).join('');
+  }
+
+  const log = $('log');
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  log.innerHTML = s.log.map((l) => `<div class="${l.level}"><time>${esc(l.t)}</time>${esc(l.msg)}</div>`).join('');
+  if (atBottom) log.scrollTop = log.scrollHeight;
+}
+setInterval(refresh, 1000);
+refresh();
+</script>
+</body>
+</html>
